@@ -143,8 +143,26 @@ final class ModuleStore: ObservableObject {
     func importManifest(_ url: URL) throws {
         let access = url.startAccessingSecurityScopedResource()
         defer { if access { url.stopAccessingSecurityScopedResource() } }
+
+        // Treat imported manifests as untrusted input: cap size before decoding.
+        let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+        let fileSize = (attributes[.size] as? NSNumber)?.intValue ?? 0
+        guard fileSize > 0, fileSize <= 64 * 1024 else { throw ImportError.invalidManifest }
+
         let manifest = try JSONDecoder().decode(ModuleManifest.self, from: Data(contentsOf: url))
-        guard !manifest.id.isEmpty, !manifest.name.isEmpty, !manifest.version.isEmpty else {
+        let allowedCapabilities: Set<String> = ["theme-preset", "dashboard-widget", "in-app-actions"]
+        let validID = manifest.id.range(
+            of: #"^[A-Za-z0-9][A-Za-z0-9._-]{2,127}$"#,
+            options: .regularExpression
+        ) != nil
+        guard validID,
+              !manifest.name.isEmpty, manifest.name.count <= 80,
+              !manifest.version.isEmpty, manifest.version.count <= 32,
+              manifest.author.count <= 80, manifest.description.count <= 500,
+              manifest.category.count <= 40,
+              manifest.capabilities.count <= 12,
+              Set(manifest.capabilities).isSubset(of: allowedCapabilities),
+              manifest.theme == nil || NocturneTheme(rawValue: manifest.theme!) != nil else {
             throw ImportError.invalidManifest
         }
         if let i = modules.firstIndex(where: { $0.id == manifest.id }) {
