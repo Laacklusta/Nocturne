@@ -19,7 +19,7 @@ struct TweakCenterView: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
 
-                Section("Home Screen Web Clip") {
+                Section {
                     TextField("Shortcut name", text: $clipName)
                         .textInputAutocapitalization(.words)
                     TextField("Website URL", text: $clipURL)
@@ -34,6 +34,8 @@ struct TweakCenterView: View {
                             .frame(maxWidth: .infinity)
                     }
                     .disabled(clipName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                } header: {
+                    Text("Home Screen Web Clip")
                 } footer: {
                     Text("Creates a .mobileconfig containing Apple's Web Clip payload. After sharing or saving it, open the file on your iPhone and approve installation in Settings.")
                 }
