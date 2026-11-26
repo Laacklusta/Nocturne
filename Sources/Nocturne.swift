@@ -24,26 +24,26 @@ enum NocturneTheme: String, CaseIterable, Identifiable {
     var id: String { rawValue }
     var background: Color {
         switch self {
-        case .midnight: Color(red: 0.035, green: 0.039, blue: 0.055)
-        case .amethyst: Color(red: 0.075, green: 0.045, blue: 0.105)
-        case .graphite: Color(red: 0.075, green: 0.080, blue: 0.090)
-        case .oled: .black
+        case .midnight: return Color(red: 0.035, green: 0.039, blue: 0.055)
+        case .amethyst: return Color(red: 0.075, green: 0.045, blue: 0.105)
+        case .graphite: return Color(red: 0.075, green: 0.080, blue: 0.090)
+        case .oled: return .black
         }
     }
     var panel: Color {
         switch self {
-        case .midnight: Color(red: 0.085, green: 0.090, blue: 0.12)
-        case .amethyst: Color(red: 0.14, green: 0.085, blue: 0.18)
-        case .graphite: Color(red: 0.14, green: 0.15, blue: 0.17)
-        case .oled: Color(red: 0.055, green: 0.055, blue: 0.065)
+        case .midnight: return Color(red: 0.085, green: 0.090, blue: 0.12)
+        case .amethyst: return Color(red: 0.14, green: 0.085, blue: 0.18)
+        case .graphite: return Color(red: 0.14, green: 0.15, blue: 0.17)
+        case .oled: return Color(red: 0.055, green: 0.055, blue: 0.065)
         }
     }
     var accent: Color {
         switch self {
-        case .midnight: Color(red: 0.58, green: 0.38, blue: 0.98)
-        case .amethyst: Color(red: 0.82, green: 0.48, blue: 1.0)
-        case .graphite: Color(red: 0.42, green: 0.72, blue: 1.0)
-        case .oled: Color(red: 0.45, green: 0.72, blue: 1.0)
+        case .midnight: return Color(red: 0.58, green: 0.38, blue: 0.98)
+        case .amethyst: return Color(red: 0.82, green: 0.48, blue: 1.0)
+        case .graphite: return Color(red: 0.42, green: 0.72, blue: 1.0)
+        case .oled: return Color(red: 0.45, green: 0.72, blue: 1.0)
         }
     }
 }
@@ -63,14 +63,11 @@ final class ThemeManager: ObservableObject {
     var panel: Color { selected.panel }
     var accent: Color { selected.accent }
 
-    func applyModule(_ moduleID: String) {
-        switch moduleID {
-        case "com.nocturne.midnight": selected = .midnight
-        case "com.nocturne.amethyst": selected = .amethyst
-        case "com.nocturne.graphite": selected = .graphite
-        case "com.nocturne.oled": selected = .oled
-        default: break
-        }
+    func applyModule(_ module: ModuleRecord) {
+        guard module.manifest.capabilities.contains("theme-preset"),
+              let themeName = module.manifest.theme,
+              let choice = NocturneTheme(rawValue: themeName) else { return }
+        selected = choice
     }
 }
 
@@ -83,6 +80,7 @@ struct ModuleManifest: Codable, Identifiable, Hashable {
     let category: String
     let minimumAppVersion: String?
     let capabilities: [String]
+    var theme: String? = nil
 }
 
 struct ModuleRecord: Identifiable, Codable, Hashable {
@@ -168,7 +166,22 @@ final class ModuleStore: ObservableObject {
         ModuleRecord(manifest: ModuleManifest(
             id: "com.nocturne.midnight", name: "Midnight Palette", version: "1.0.0",
             author: "Nocturne", description: "A deep charcoal and violet palette for the Nocturne interface.",
-            category: "Appearance", minimumAppVersion: "0.1.0", capabilities: ["theme-preset"]
+            category: "Appearance", minimumAppVersion: "0.1.0", capabilities: ["theme-preset"], theme: "Midnight"
+        )),
+        ModuleRecord(manifest: ModuleManifest(
+            id: "com.nocturne.amethyst", name: "Amethyst Palette", version: "1.0.0",
+            author: "Nocturne", description: "A richer violet palette with a brighter lavender accent.",
+            category: "Appearance", minimumAppVersion: "0.1.0", capabilities: ["theme-preset"], theme: "Amethyst"
+        )),
+        ModuleRecord(manifest: ModuleManifest(
+            id: "com.nocturne.graphite", name: "Graphite Palette", version: "1.0.0",
+            author: "Nocturne", description: "A neutral graphite interface with a cool blue accent.",
+            category: "Appearance", minimumAppVersion: "0.1.0", capabilities: ["theme-preset"], theme: "Graphite"
+        )),
+        ModuleRecord(manifest: ModuleManifest(
+            id: "com.nocturne.oled", name: "OLED Black", version: "1.0.0",
+            author: "Nocturne", description: "Near-pure black panels for an OLED-friendly interface.",
+            category: "Appearance", minimumAppVersion: "0.1.0", capabilities: ["theme-preset"], theme: "OLED Black"
         )),
         ModuleRecord(manifest: ModuleManifest(
             id: "com.nocturne.focus", name: "Focus Dashboard", version: "1.0.0",
@@ -349,7 +362,7 @@ struct ModuleDetailView: View {
                                 set: {
                                     store.toggle($0, id: id)
                                     if $0 && module.manifest.capabilities.contains("theme-preset") {
-                                        theme.applyModule(id)
+                                        theme.applyModule(module)
                                     }
                                 }
                             )).tint(theme.accent)
@@ -398,7 +411,7 @@ struct InstalledView: View {
                             set: {
                                 store.toggle($0, id: module.id)
                                 if $0 && module.manifest.capabilities.contains("theme-preset") {
-                                    theme.applyModule(module.id)
+                                    theme.applyModule(module)
                                 }
                             }
                         )).labelsHidden().tint(theme.accent)
