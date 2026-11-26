@@ -224,7 +224,8 @@ struct RootView: View {
     var body: some View {
         TabView {
             DashboardView().tabItem { Label("Home", systemImage: "square.grid.2x2.fill") }
-            ModuleBrowserView().tabItem { Label("Discover", systemImage: "square.stack.3d.up.fill") }
+            TweakCenterView().tabItem { Label("Tweaks", systemImage: "slider.horizontal.3") }
+            ModuleBrowserView().tabItem { Label("Modules", systemImage: "square.stack.3d.up.fill") }
             InstalledView().tabItem { Label("Installed", systemImage: "checkmark.seal.fill") }
             SettingsView().tabItem { Label("Settings", systemImage: "slider.horizontal.3") }
         }.tint(theme.accent)
