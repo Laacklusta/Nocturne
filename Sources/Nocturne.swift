@@ -343,7 +343,7 @@ struct ModuleRow: View {
             }
             Spacer()
             Image(systemName: module.isInstalled ? "checkmark.circle.fill" : "chevron.right")
-                .foregroundStyle(module.isInstalled ? .green : .secondary)
+                .foregroundStyle(module.isInstalled ? Color.green : Color.secondary)
         }.padding(14).background(theme.panel).clipShape(RoundedRectangle(cornerRadius: 17))
     }
 }
