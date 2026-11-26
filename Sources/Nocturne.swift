@@ -227,7 +227,8 @@ struct RootView: View {
             TweakCenterView().tabItem { Label("Tweaks", systemImage: "slider.horizontal.3") }
             ModuleBrowserView().tabItem { Label("Modules", systemImage: "square.stack.3d.up.fill") }
             InstalledView().tabItem { Label("Installed", systemImage: "checkmark.seal.fill") }
-            SettingsView().tabItem { Label("Settings", systemImage: "slider.horizontal.3") }
+            ResearchView().tabItem { Label("Research", systemImage: "doc.text.magnifyingglass") }
+            SettingsView().tabItem { Label("Settings", systemImage: "gearshape.fill") }
         }.tint(theme.accent)
     }
 }
