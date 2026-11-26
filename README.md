@@ -18,6 +18,16 @@ xcodebuild -project Nocturne.xcodeproj -scheme Nocturne -destination 'generic/pl
 
 The GitHub Actions workflow performs this build on every push and pull request and uploads the simulator app bundle as an artifact. A simulator build is not an installable signed IPA; device distribution requires signing with an Apple development/distribution identity.
 
+## Current functionality
+
+- Four persistent, live UI palettes: Midnight, Amethyst, Graphite, and OLED Black.
+- Installable appearance modules that apply their declared palette when enabled.
+- Module discovery, category filtering, and text search.
+- Install, enable, disable, and remove operations persisted in the app's Application Support directory.
+- JSON manifest import with file-size, field-length, identifier, and capability validation.
+
+These are app-local features; they do not change SpringBoard, icons on the Home Screen, or other applications.
+
 ## Module manifests
 
 Nocturne can import JSON module manifests. Example:
