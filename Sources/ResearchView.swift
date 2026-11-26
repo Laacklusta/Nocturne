@@ -3,63 +3,60 @@ import UIKit
 
 struct ResearchView: View {
     @EnvironmentObject private var theme: ThemeManager
-
     private let currentVersion = UIDevice.current.systemVersion
-    private let fixedVersion = "27.2"
+    private let fixVersion = "27.2"
 
-    private var appearsPreFix: Bool {
-        compareVersions(currentVersion, fixedVersion) == .orderedAscending
+    private var assessment: String {
+        compareVersions(currentVersion, fixVersion) == .orderedAscending
+            ? "Reported pre-fix range" : "At/after reported fix"
     }
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    Label("Research reference loaded", systemImage: "doc.text.magnifyingglass")
+                    Label("iOS 27 research track", systemImage: "waveform.path.ecg")
                         .foregroundStyle(theme.accent)
-                    Text("This page summarizes public, device-tested research. No exploit is run, no memory is read or written, and Nocturne does not attempt privilege escalation.")
+                    Text("Nocturne tracks public security research separately from confirmed device support. A version match is not proof that a vulnerability is reachable or that a jailbreak exists.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
-
-                Section("CVE-2026-112611 · CoreGraphics") {
-                    LabeledContent("Your iOS version", value: currentVersion)
-                    LabeledContent("Reported test build", value: "27.0.1 (24A446)")
-                    LabeledContent("Fixed in", value: "iOS 27.2")
-                    HStack {
-                        Text("Version assessment")
-                        Spacer()
-                        Text(appearsPreFix ? "Pre-fix version range" : "27.2 or newer")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(appearsPreFix ? .orange : .green)
-                    }
-                    Text("This is only a version comparison. It does not verify the device build, hardware applicability, exploitability, or whether a vendor backport is present.")
+                Section("This device") {
+                    LabeledContent("Reported iOS version", value: currentVersion)
+                    LabeledContent("Research assessment", value: assessment)
+                    Text("UIKit exposes the OS version, not the exact build number, hardware applicability, jailbreak state, or exploitability.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-
-                Section("What SKVLENT demonstrated") {
-                    evidence("PDF-selected 4-byte zero write", detail: "Reproduced in the CoreGraphics PDF shading path on the documented test build.")
-                    evidence("Heap corruption primitive", detail: "Attacker-controlled values spill beyond a PDF shading record.")
-                    evidence("Privileged userland reachability", detail: "The research reports a write primitive in the QuickLook CGPDFService process.")
+                Section("CVE-2026-112611 · reported scope") {
+                    compatibilityRow("iOS 27.0 / 27.0.1", "Primary research target")
+                    compatibilityRow("iOS 27.1.x", "Pre-fix range; verify build")
+                    compatibilityRow("iOS 27.2 and later", "Reported fixed")
+                    compatibilityRow("iOS 17–26", "Not assessed by this research")
+                    Text("The public research identifies iOS 27.2 as the fix boundary. Earlier versions are a reported pre-fix range only; exact build and hardware applicability require independent verification.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
-
-                Section("What it did not demonstrate") {
-                    evidence("Arbitrary read/write", detail: "The documented write values are constrained; a general-purpose data read/write primitive is not established.")
-                    evidence("Code execution", detail: "No working control-flow hijack or code execution is reported.")
-                    evidence("Kernel read/write or jailbreak", detail: "The research repository explicitly says neither has been demonstrated.")
+                Section("Reported primitive status") {
+                    evidence("Constrained 4-byte zero write", "Reported in a PDF-selected CoreGraphics shading path.")
+                    evidence("Heap corruption", "Associated with an out-of-bounds heap corruption condition.")
+                    evidence("Privileged userland reachability", "The research describes reachability through QuickLook's CGPDFService process.")
                 }
-
-                Section("How this informs Nocturne") {
-                    Text("Nocturne can use this research to track compatibility, explain the security boundary, and keep future experiments isolated. It cannot turn a CoreGraphics userland bug into kernel access by itself.")
-                    Text("The current Tweak Center remains limited to documented, user-approved iOS configuration features. No exploit payloads or privileged operations are included.")
+                Section("Not demonstrated by this research") {
+                    evidence("General arbitrary read/write", "The reported write is constrained; a general-purpose read/write primitive is not established.")
+                    evidence("Kernel read/write", "The public research does not demonstrate kernel memory read or write.")
+                    evidence("Working jailbreak or persistence", "No complete privilege-escalation chain or jailbreak is established.")
+                }
+                Section("Nocturne implementation status") {
+                    statusRow("Version-aware compatibility catalog", "In progress", .orange)
+                    statusRow("Jailbreak environment adapters", "Not integrated", .secondary)
+                    statusRow("CVE proof-of-concept integration", "Not integrated", .secondary)
+                    Text("The app currently contains research notes and compatibility reporting only. It does not execute the CVE proof of concept or modify kernel memory. System-tweak backends must be implemented and tested independently for each supported environment.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
-
-                Section("Primary research") {
+                Section("Primary references") {
                     Link(destination: URL(string: "https://github.com/SKVLENT/CVE-2026-112611")!) {
                         Label("SKVLENT · CVE-2026-112611", systemImage: "link")
                     }
                     Link(destination: URL(string: "https://github.com/SKVLENT/iOS27-Research-Exploits")!) {
-                        Label("SKVLENT · iOS 27 Research Exploits", systemImage: "link")
+                        Label("SKVLENT · iOS 27 research", systemImage: "link")
                     }
                     Link(destination: URL(string: "https://support.apple.com/HT149230")!) {
                         Label("Apple · iOS 27.2 security content", systemImage: "apple.logo")
@@ -72,11 +69,27 @@ struct ResearchView: View {
         }
     }
 
-    private func evidence(_ title: String, detail: String) -> some View {
+    private func compatibilityRow(_ version: String, _ status: String) -> some View {
+        HStack {
+            Text(version).font(.subheadline.weight(.medium))
+            Spacer()
+            Text(status).font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    private func evidence(_ title: String, _ detail: String) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title).font(.subheadline.weight(.semibold))
             Text(detail).font(.caption).foregroundStyle(.secondary)
         }.padding(.vertical, 3)
+    }
+
+    private func statusRow(_ title: String, _ state: String, _ color: Color) -> some View {
+        HStack {
+            Text(title).font(.subheadline)
+            Spacer()
+            Text(state).font(.caption.weight(.medium)).foregroundStyle(color)
+        }
     }
 
     private func compareVersions(_ lhs: String, _ rhs: String) -> ComparisonResult {
