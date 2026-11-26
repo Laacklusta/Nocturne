@@ -35,3 +35,7 @@ GitHub Actions is configured to build the iOS Simulator target. A simulator buil
 - Safari Web Extensions and content blockers, installed and enabled through Apple's supported extension flow.
 
 Nocturne will not execute arbitrary downloaded binaries or use memory-corruption exploits as a privilege escalation mechanism.
+
+## Security research
+
+The Research tab summarizes the public SKVLENT iOS 27 research on CVE-2026-112611, including its demonstrated userland primitives, explicit limitations, and the iOS 27.2 fix boundary. It is informational only: Nocturne does not execute the proof of concept, attempt kernel access, or perform privilege escalation. The version comparison is advisory and does not establish device exploitability.
