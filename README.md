@@ -1,19 +1,46 @@
 # Nocturne
 
-Nocturne is an early iOS 27 customization utility for non-jailbroken devices. It is being developed around real, user-approved iOS configuration mechanisms rather than pretending to provide jailbreak-style code injection.
+Nocturne is an iOS customization and security-research project with **iOS 27.0 as its primary research target**. The app is being structured so compatibility can be tracked across other supported iOS releases without treating a version match as proof of exploitability.
 
-## What works now
+## Current project status
 
-- **Tweak Center:** builds an Apple configuration profile containing a Home Screen Web Clip.
-- Configure the shortcut's display name, destination URL, and standalone/full-screen launch behavior.
-- Export the `.mobileconfig` file through the iOS share sheet. The user must open it and approve installation in Settings.
-- The existing module browser, installation state, JSON manifest import, and in-app palettes remain available as separate app-local features.
+- SwiftUI application shell with dashboard, module browser, installed-module list, settings, and research pages.
+- Local JSON module manifests with an explicit capability allowlist. Modules currently affect Nocturne itself; they are not system tweak packages.
+- Tweak Center can generate a user-installable configuration profile containing a Home Screen Web Clip.
+- Research page tracks the public CVE-2026-112611 claims and distinguishes reported primitives from capabilities that have not been demonstrated.
+- iOS version reporting is advisory. The app does not yet identify exact build/hardware applicability or provide a jailbreak backend.
 
-## Important platform limits
+## iOS 27 compatibility track
 
-A normal App Store-style iOS app cannot inject code into SpringBoard or other apps, replace arbitrary app icons, write to protected system locations, or silently install configuration profiles. Nocturne does not claim to do those things.
+| iOS version | Nocturne research status |
+| --- | --- |
+| 27.0 / 27.0.1 | Primary research target / reported pre-fix range |
+| 27.1.x | Reported pre-fix range; exact build must be verified |
+| 27.2 and later | Reported CVE-2026-112611 fix boundary |
+| iOS 17–26 | App deployment target; this specific CVE research does not assess these releases |
 
-A Web Clip is a real iOS-supported Home Screen shortcut to a website. It is not a native app icon replacement and does not modify SpringBoard. Profile installation is always a user action.
+The CVE-2026-112611 research identifies iOS 27.2 as the fix boundary. Earlier versions should be treated as a reported affected range, not as confirmed exploitable builds. Hardware, exact build, mitigations, and reachability all matter.
+
+## Research status: CVE-2026-112611
+
+The public SKVLENT material describes a constrained PDF-selected 4-byte zero write and heap corruption in a CoreGraphics shading path, with privileged userland reachability through QuickLook's CGPDFService process.
+
+The cited work does **not** demonstrate a general arbitrary read/write primitive, kernel read/write, code execution, a complete privilege-escalation chain, or a working jailbreak. Nocturne currently records this research; it does not run the proof of concept or attempt kernel memory access.
+
+References:
+- [SKVLENT · CVE-2026-112611](https://github.com/SKVLENT/CVE-2026-112611)
+- [SKVLENT · iOS 27 Research Exploits](https://github.com/SKVLENT/iOS27-Research-Exploits)
+- [Apple · iOS 27.2 security content](https://support.apple.com/HT149230)
+
+## Architecture direction
+
+Nocturne separates three concerns:
+
+1. **Core app:** UI, module metadata, device/version reporting, settings, and diagnostics.
+2. **Environment adapters:** integration points for supported jailbreak/package environments. Each adapter must declare its supported iOS builds, architecture, package layout, permissions, and capabilities.
+3. **Research catalog:** vulnerability references, affected/fixed build notes, evidence status, and reproducibility metadata. Experimental work remains separate from production tweak functionality.
+
+A module manifest is not executable code and does not grant privileges. Nocturne will not silently install profiles, execute arbitrary downloaded binaries, or present unverified exploit claims as working features.
 
 ## Build
 
@@ -25,17 +52,4 @@ xcodegen generate
 xcodebuild -project Nocturne.xcodeproj -scheme Nocturne -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ```
 
-GitHub Actions is configured to build the iOS Simulator target. A simulator build is not an installable signed IPA; device distribution requires signing with an Apple development/distribution identity.
-
-## Next supported extension points
-
-- Additional manually installable configuration-profile payloads, only where Apple supports them on the target OS.
-- Shortcuts setup flows that the user explicitly authorizes.
-- Real WidgetKit and app-extension targets.
-- Safari Web Extensions and content blockers, installed and enabled through Apple's supported extension flow.
-
-Nocturne will not execute arbitrary downloaded binaries or use memory-corruption exploits as a privilege escalation mechanism.
-
-## Security research
-
-The Research tab summarizes the public SKVLENT iOS 27 research on CVE-2026-112611, including its demonstrated userland primitives, explicit limitations, and the iOS 27.2 fix boundary. It is informational only: Nocturne does not execute the proof of concept, attempt kernel access, or perform privilege escalation. The version comparison is advisory and does not establish device exploitability.
+GitHub Actions builds the iOS Simulator target. A simulator build is not an installable signed IPA; device distribution requires signing with an Apple development/distribution identity.
