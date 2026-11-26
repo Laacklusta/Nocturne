@@ -142,7 +142,7 @@ struct TweakCenterView: View {
         let renderer = UIGraphicsImageRenderer(size: CGSize(width: 180, height: 180))
         let image = renderer.image { context in
             UIColor(red: 0.20, green: 0.12, blue: 0.34, alpha: 1).setFill()
-            context.fill(CGRect(x: 0, y: 0, width: 180, height: 180))
+            context.cgContext.fill(CGRect(x: 0, y: 0, width: 180, height: 180))
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: UIFont.systemFont(ofSize: 104, weight: .bold),
                 .foregroundColor: UIColor.white
