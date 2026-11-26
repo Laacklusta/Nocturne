@@ -108,6 +108,7 @@ struct TweakCenterView: View {
                 "PayloadDescription": "Home Screen web shortcut created with Nocturne.",
                 "Label": name,
                 "URL": normalizedURL.absoluteString,
+                "Icon": makeDefaultIcon(),
                 "IsRemovable": true,
                 "FullScreen": opensFullscreen,
                 "Precomposed": true
@@ -135,6 +136,22 @@ struct TweakCenterView: View {
         } catch {
             errorMessage = error.localizedDescription
         }
+    }
+
+    private func makeDefaultIcon() -> Data {
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: 180, height: 180))
+        let image = renderer.image { context in
+            UIColor(red: 0.20, green: 0.12, blue: 0.34, alpha: 1).setFill()
+            context.fill(CGRect(x: 0, y: 0, width: 180, height: 180))
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 104, weight: .bold),
+                .foregroundColor: UIColor.white
+            ]
+            let mark = NSAttributedString(string: "N", attributes: attributes)
+            let size = mark.size()
+            mark.draw(at: CGPoint(x: (180 - size.width) / 2, y: (180 - size.height) / 2 - 4))
+        }
+        return image.pngData() ?? Data()
     }
 
     private func safeFilename(_ value: String) -> String {
