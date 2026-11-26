@@ -4,13 +4,64 @@ import UniformTypeIdentifiers
 @main
 struct NocturneApp: App {
     @StateObject private var store = ModuleStore()
+    @StateObject private var theme = ThemeManager()
     var body: some Scene {
         WindowGroup {
             RootView()
                 .environmentObject(store)
+                .environmentObject(theme)
                 .preferredColorScheme(.dark)
         }
     }
+}
+
+enum NocturneTheme: String, CaseIterable, Identifiable {
+    case midnight = "Midnight"
+    case amethyst = "Amethyst"
+    case graphite = "Graphite"
+    case oled = "OLED Black"
+
+    var id: String { rawValue }
+    var background: Color {
+        switch self {
+        case .midnight: Color(red: 0.035, green: 0.039, blue: 0.055)
+        case .amethyst: Color(red: 0.075, green: 0.045, blue: 0.105)
+        case .graphite: Color(red: 0.075, green: 0.080, blue: 0.090)
+        case .oled: .black
+        }
+    }
+    var panel: Color {
+        switch self {
+        case .midnight: Color(red: 0.085, green: 0.090, blue: 0.12)
+        case .amethyst: Color(red: 0.14, green: 0.085, blue: 0.18)
+        case .graphite: Color(red: 0.14, green: 0.15, blue: 0.17)
+        case .oled: Color(red: 0.055, green: 0.055, blue: 0.065)
+        }
+    }
+    var accent: Color {
+        switch self {
+        case .midnight: Color(red: 0.58, green: 0.38, blue: 0.98)
+        case .amethyst: Color(red: 0.82, green: 0.48, blue: 1.0)
+        case .graphite: Color(red: 0.42, green: 0.72, blue: 1.0)
+        case .oled: Color(red: 0.45, green: 0.72, blue: 1.0)
+        }
+    }
+}
+
+@MainActor
+final class ThemeManager: ObservableObject {
+    @Published var selected: NocturneTheme {
+        didSet { UserDefaults.standard.set(selected.rawValue, forKey: "nocturne.selectedTheme") }
+    }
+
+    init() {
+        let saved = UserDefaults.standard.string(forKey: "nocturne.selectedTheme") ?? ""
+        selected = NocturneTheme(rawValue: saved) ?? .midnight
+    }
+
+    var background: Color { selected.background }
+    var panel: Color { selected.panel }
+    var accent: Color { selected.accent }
 }
 
 struct ModuleManifest: Codable, Identifiable, Hashable {
@@ -127,25 +178,21 @@ enum ImportError: LocalizedError {
     var errorDescription: String? { "The selected file is not a valid Nocturne module manifest." }
 }
 
-private extension Color {
-    static let nocturneBackground = Color(red: 0.035, green: 0.039, blue: 0.055)
-    static let nocturnePanel = Color(red: 0.085, green: 0.090, blue: 0.12)
-    static let nocturneAccent = Color(red: 0.58, green: 0.38, blue: 0.98)
-}
-
 struct RootView: View {
+    @EnvironmentObject private var theme: ThemeManager
     var body: some View {
         TabView {
             DashboardView().tabItem { Label("Home", systemImage: "square.grid.2x2.fill") }
             ModuleBrowserView().tabItem { Label("Discover", systemImage: "square.stack.3d.up.fill") }
             InstalledView().tabItem { Label("Installed", systemImage: "checkmark.seal.fill") }
             SettingsView().tabItem { Label("Settings", systemImage: "slider.horizontal.3") }
-        }.tint(.nocturneAccent)
+        }.tint(theme.accent)
     }
 }
 
 struct DashboardView: View {
     @EnvironmentObject private var store: ModuleStore
+    @EnvironmentObject private var theme: ThemeManager
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -167,20 +214,20 @@ struct DashboardView: View {
                             }
                             Spacer()
                             Image(systemName: "arrow.up.right")
-                        }.padding(18).background(Color.nocturnePanel).clipShape(RoundedRectangle(cornerRadius: 18))
+                        }.padding(18).background(theme.panel).clipShape(RoundedRectangle(cornerRadius: 18))
                     }.buttonStyle(.plain)
                     Label("Non-jailbroken mode", systemImage: "lock.shield.fill")
                         .font(.subheadline.weight(.semibold)).foregroundStyle(.green)
                     Text("Modules customize Nocturne itself. iOS does not let an ordinary app inject tweaks into SpringBoard or other apps.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }.padding(20)
-            }.background(Color.nocturneBackground.ignoresSafeArea()).toolbar(.hidden, for: .navigationBar)
+            }.background(theme.background.ignoresSafeArea()).toolbar(.hidden, for: .navigationBar)
         }
     }
 
     private func metric(_ title: String, value: String, icon: String) -> some View {
         VStack(alignment: .leading, spacing: 10) {
-            Image(systemName: icon).foregroundStyle(Color.nocturneAccent)
+            Image(systemName: icon).foregroundStyle(theme.accent)
             Text(value).font(.system(size: 28, weight: .bold, design: .rounded))
             Text(title).font(.caption).foregroundStyle(.secondary)
         }.frame(maxWidth: .infinity, alignment: .leading).padding(16)
@@ -190,6 +237,7 @@ struct DashboardView: View {
 
 struct ModuleBrowserView: View {
     @EnvironmentObject private var store: ModuleStore
+    @EnvironmentObject private var theme: ThemeManager
     @State private var importing = false
     @State private var errorMessage: String?
 
@@ -239,6 +287,7 @@ struct ModuleBrowserView: View {
 
 struct ModuleRow: View {
     let module: ModuleRecord
+    @EnvironmentObject private var theme: ThemeManager
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: module.manifest.category == "Appearance" ? "paintpalette.fill" : "puzzlepiece.extension.fill")
@@ -261,6 +310,7 @@ struct ModuleRow: View {
 struct ModuleDetailView: View {
     let id: String
     @EnvironmentObject private var store: ModuleStore
+    @EnvironmentObject private var theme: ThemeManager
     private var module: ModuleRecord? { store.modules.first { $0.id == id } }
 
     var body: some View {
@@ -311,6 +361,7 @@ struct ModuleDetailView: View {
 
 struct InstalledView: View {
     @EnvironmentObject private var store: ModuleStore
+    @EnvironmentObject private var theme: ThemeManager
     var body: some View {
         NavigationStack {
             List {
@@ -338,9 +389,25 @@ struct InstalledView: View {
 }
 
 struct SettingsView: View {
+    @EnvironmentObject private var theme: ThemeManager
     var body: some View {
         NavigationStack {
             List {
+                Section("Appearance") {
+                    Picker("Theme", selection: $theme.selected) {
+                        ForEach(NocturneTheme.allCases) { choice in
+                            Text(choice.rawValue).tag(choice)
+                        }
+                    }
+                    HStack(spacing: 12) {
+                        RoundedRectangle(cornerRadius: 8).fill(theme.accent).frame(width: 28, height: 28)
+                        VStack(alignment: .leading) {
+                            Text("Live preview").font(.subheadline.weight(.semibold))
+                            Text("Theme changes apply throughout Nocturne and are saved automatically.")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }.padding(.vertical, 4)
+                }
                 Section("Application") {
                     LabeledContent("Name", value: "Nocturne")
                     LabeledContent("Version", value: "0.1.0 · Foundation")
