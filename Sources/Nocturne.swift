@@ -259,9 +259,9 @@ struct DashboardView: View {
                             Image(systemName: "arrow.up.right")
                         }.padding(18).background(theme.panel).clipShape(RoundedRectangle(cornerRadius: 18))
                     }.buttonStyle(.plain)
-                    Label("Non-jailbroken mode", systemImage: "lock.shield.fill")
-                        .font(.subheadline.weight(.semibold)).foregroundStyle(.green)
-                    Text("Modules customize Nocturne itself. iOS does not let an ordinary app inject tweaks into SpringBoard or other apps.")
+                    Label("Research build · iOS 27 focused", systemImage: "wrench.and.screwdriver")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(theme.accent)
+                    Text("Nocturne separates app features, jailbreak-environment integrations, and experimental security research. System-level features require a compatible execution environment and are not implied by an iOS version match.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }.padding(20)
             }.background(theme.background.ignoresSafeArea()).toolbar(.hidden, for: .navigationBar)
@@ -466,11 +466,11 @@ struct SettingsView: View {
                 Section("Application") {
                     LabeledContent("Name", value: "Nocturne")
                     LabeledContent("Version", value: "0.1.0 · Foundation")
-                    LabeledContent("Mode", value: "Non-jailbroken")
+                    LabeledContent("Focus", value: "iOS 27 research and compatibility")
                 }
                 Section("Compatibility") {
                     Label("Sandbox-safe module system", systemImage: "checkmark.shield.fill").foregroundStyle(.green)
-                    Text("System-wide tweak injection, SpringBoard modification and privileged package installation are outside the capabilities of this build.")
+                    Text("This build does not yet include a jailbreak backend or system-level tweak loader. Compatibility is tracked separately from implementation status.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Section("About") {
