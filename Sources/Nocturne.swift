@@ -62,6 +62,16 @@ final class ThemeManager: ObservableObject {
     var background: Color { selected.background }
     var panel: Color { selected.panel }
     var accent: Color { selected.accent }
+
+    func applyModule(_ moduleID: String) {
+        switch moduleID {
+        case "com.nocturne.midnight": selected = .midnight
+        case "com.nocturne.amethyst": selected = .amethyst
+        case "com.nocturne.graphite": selected = .graphite
+        case "com.nocturne.oled": selected = .oled
+        default: break
+        }
+    }
 }
 
 struct ModuleManifest: Codable, Identifiable, Hashable {
@@ -231,7 +241,7 @@ struct DashboardView: View {
             Text(value).font(.system(size: 28, weight: .bold, design: .rounded))
             Text(title).font(.caption).foregroundStyle(.secondary)
         }.frame(maxWidth: .infinity, alignment: .leading).padding(16)
-            .background(Color.nocturnePanel).clipShape(RoundedRectangle(cornerRadius: 16))
+            .background(theme.panel).clipShape(RoundedRectangle(cornerRadius: 16))
     }
 }
 
@@ -250,7 +260,7 @@ struct ModuleBrowserView: View {
                             Button(item) { store.category = item }
                                 .font(.subheadline.weight(.semibold))
                                 .padding(.horizontal, 14).padding(.vertical, 8)
-                                .background(store.category == item ? Color.nocturneAccent : Color.nocturnePanel)
+                                .background(store.category == item ? theme.accent : theme.panel)
                                 .foregroundStyle(.white).clipShape(Capsule())
                         }
                     }.padding(.horizontal)
@@ -264,7 +274,7 @@ struct ModuleBrowserView: View {
                         }
                     }.padding(.horizontal)
                 }
-            }.background(Color.nocturneBackground.ignoresSafeArea())
+            }.background(theme.background.ignoresSafeArea())
                 .navigationTitle("Discover")
                 .searchable(text: $store.query, prompt: "Search modules")
                 .toolbar {
@@ -291,8 +301,8 @@ struct ModuleRow: View {
     var body: some View {
         HStack(spacing: 14) {
             Image(systemName: module.manifest.category == "Appearance" ? "paintpalette.fill" : "puzzlepiece.extension.fill")
-                .font(.title2).foregroundStyle(Color.nocturneAccent)
-                .frame(width: 52, height: 52).background(Color.nocturneAccent.opacity(0.16))
+                .font(.title2).foregroundStyle(theme.accent)
+                .frame(width: 52, height: 52).background(theme.accent.opacity(0.16))
                 .clipShape(RoundedRectangle(cornerRadius: 14))
             VStack(alignment: .leading, spacing: 4) {
                 Text(module.manifest.name).font(.headline)
@@ -303,7 +313,7 @@ struct ModuleRow: View {
             Spacer()
             Image(systemName: module.isInstalled ? "checkmark.circle.fill" : "chevron.right")
                 .foregroundStyle(module.isInstalled ? .green : .secondary)
-        }.padding(14).background(Color.nocturnePanel).clipShape(RoundedRectangle(cornerRadius: 17))
+        }.padding(14).background(theme.panel).clipShape(RoundedRectangle(cornerRadius: 17))
     }
 }
 
@@ -319,9 +329,9 @@ struct ModuleDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         Image(systemName: "puzzlepiece.extension.fill")
-                            .font(.system(size: 48)).foregroundStyle(Color.nocturneAccent)
+                            .font(.system(size: 48)).foregroundStyle(theme.accent)
                             .frame(maxWidth: .infinity).padding(.vertical, 28)
-                            .background(Color.nocturnePanel).clipShape(RoundedRectangle(cornerRadius: 22))
+                            .background(theme.panel).clipShape(RoundedRectangle(cornerRadius: 22))
                         Text(module.manifest.name).font(.largeTitle.bold())
                         Text(module.manifest.description).foregroundStyle(.secondary)
                         detail("Version", module.manifest.version)
@@ -335,17 +345,23 @@ struct ModuleDetailView: View {
                             .font(.footnote).foregroundStyle(.secondary)
                         if module.isInstalled {
                             Toggle("Enable module", isOn: Binding(
-                                get: { module.isEnabled }, set: { store.toggle($0, id: id) }
-                            )).tint(Color.nocturneAccent)
+                                get: { module.isEnabled },
+                                set: {
+                                    store.toggle($0, id: id)
+                                    if $0 && module.manifest.capabilities.contains("theme-preset") {
+                                        theme.applyModule(id)
+                                    }
+                                }
+                            )).tint(theme.accent)
                             Button("Remove module", role: .destructive) { store.remove(id) }
                                 .buttonStyle(.bordered).frame(maxWidth: .infinity)
                         } else {
                             Button("Install module") { store.install(id) }
-                                .buttonStyle(.borderedProminent).tint(Color.nocturneAccent)
+                                .buttonStyle(.borderedProminent).tint(theme.accent)
                                 .frame(maxWidth: .infinity)
                         }
                     }.padding(20)
-                }.background(Color.nocturneBackground.ignoresSafeArea())
+                }.background(theme.background.ignoresSafeArea())
                     .navigationTitle("Module").navigationBarTitleDisplayMode(.inline)
             } else {
                 ContentUnavailableView("Module unavailable", systemImage: "questionmark.folder")
@@ -378,11 +394,17 @@ struct InstalledView: View {
                         }
                         Spacer()
                         Toggle("Enabled", isOn: Binding(
-                            get: { module.isEnabled }, set: { store.toggle($0, id: module.id) }
-                        )).labelsHidden().tint(Color.nocturneAccent)
-                    }.listRowBackground(Color.nocturnePanel)
+                            get: { module.isEnabled },
+                            set: {
+                                store.toggle($0, id: module.id)
+                                if $0 && module.manifest.capabilities.contains("theme-preset") {
+                                    theme.applyModule(module.id)
+                                }
+                            }
+                        )).labelsHidden().tint(theme.accent)
+                    }.listRowBackground(theme.panel)
                 }
-            }.scrollContentBackground(.hidden).background(Color.nocturneBackground)
+            }.scrollContentBackground(.hidden).background(theme.background)
                 .navigationTitle("Installed")
         }
     }
@@ -422,7 +444,7 @@ struct SettingsView: View {
                     Text("Nocturne is an independent project and is not affiliated with Apple, Cyanide, or SnowBoard.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-            }.scrollContentBackground(.hidden).background(Color.nocturneBackground)
+            }.scrollContentBackground(.hidden).background(theme.background)
                 .navigationTitle("Settings")
         }
     }
