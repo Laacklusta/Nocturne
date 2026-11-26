@@ -1,10 +1,19 @@
 # Nocturne
 
-Nocturne is an early SwiftUI customization workspace for iOS 27-era devices. The first milestone is a non-jailbroken, sandbox-safe module manager.
+Nocturne is an early iOS 27 customization utility for non-jailbroken devices. It is being developed around real, user-approved iOS configuration mechanisms rather than pretending to provide jailbreak-style code injection.
 
-## Platform boundary
+## What works now
 
-An ordinary iOS app cannot install system-wide tweaks, inject code into SpringBoard or other apps, write to protected system locations, or gain privileged access from a proof-of-concept vulnerability. This project therefore focuses on modules that Nocturne interprets inside its own app: appearance presets, dashboard features, and declarative configuration. Module metadata is data, not executable payload.
+- **Tweak Center:** builds an Apple configuration profile containing a Home Screen Web Clip.
+- Configure the shortcut's display name, destination URL, and standalone/full-screen launch behavior.
+- Export the `.mobileconfig` file through the iOS share sheet. The user must open it and approve installation in Settings.
+- The existing module browser, installation state, JSON manifest import, and in-app palettes remain available as separate app-local features.
+
+## Important platform limits
+
+A normal App Store-style iOS app cannot inject code into SpringBoard or other apps, replace arbitrary app icons, write to protected system locations, or silently install configuration profiles. Nocturne does not claim to do those things.
+
+A Web Clip is a real iOS-supported Home Screen shortcut to a website. It is not a native app icon replacement and does not modify SpringBoard. Profile installation is always a user action.
 
 ## Build
 
@@ -16,32 +25,13 @@ xcodegen generate
 xcodebuild -project Nocturne.xcodeproj -scheme Nocturne -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
 ```
 
-The GitHub Actions workflow performs this build on every push and pull request and uploads the simulator app bundle as an artifact. A simulator build is not an installable signed IPA; device distribution requires signing with an Apple development/distribution identity.
+GitHub Actions is configured to build the iOS Simulator target. A simulator build is not an installable signed IPA; device distribution requires signing with an Apple development/distribution identity.
 
-## Current functionality
+## Next supported extension points
 
-- Four persistent, live UI palettes: Midnight, Amethyst, Graphite, and OLED Black.
-- Installable appearance modules that apply their declared palette when enabled.
-- Module discovery, category filtering, and text search.
-- Install, enable, disable, and remove operations persisted in the app's Application Support directory.
-- JSON manifest import with file-size, field-length, identifier, and capability validation.
+- Additional manually installable configuration-profile payloads, only where Apple supports them on the target OS.
+- Shortcuts setup flows that the user explicitly authorizes.
+- Real WidgetKit and app-extension targets.
+- Safari Web Extensions and content blockers, installed and enabled through Apple's supported extension flow.
 
-These are app-local features; they do not change SpringBoard, icons on the Home Screen, or other applications.
-
-## Module manifests
-
-Nocturne can import JSON module manifests. Example:
-
-```json
-{
-  "id": "com.example.focus-pack",
-  "name": "Focus Pack",
-  "version": "1.0.0",
-  "author": "Example",
-  "description": "A sample in-app configuration pack.",
-  "category": "Productivity",
-  "capabilities": ["dashboard-widget", "theme-preset"]
-}
-```
-
-Capabilities are descriptive and do not grant operating-system privileges.
+Nocturne will not execute arbitrary downloaded binaries or use memory-corruption exploits as a privilege escalation mechanism.
