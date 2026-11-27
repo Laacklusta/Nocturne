@@ -1,11 +1,13 @@
 import SwiftUI
 import UIKit
+import Darwin
 
 struct ResearchView: View {
     @EnvironmentObject private var theme: ThemeManager
     @State private var results: [String: String] = [:]
 
     private let currentVersion = UIDevice.current.systemVersion
+    private let currentBuild = sysctlString("kern.osversion") ?? "Unavailable"
 
     var body: some View {
         NavigationStack {
@@ -13,54 +15,65 @@ struct ResearchView: View {
                 Section {
                     Label("Vulnerability Lab", systemImage: "waveform.path.ecg")
                         .foregroundStyle(theme.accent)
-                    Text("Run non-destructive checks against this device's reported OS version and Nocturne's own sandbox. These checks do not execute exploit code, access other apps' data, or test kernel memory.")
+                    Text("Evidence-aware checks for this device and published iOS research. Version compatibility is not exploit verification. No exploit payloads, cross-app file access, or kernel memory operations are performed.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
 
                 Section("This device") {
                     LabeledContent("iOS version", value: currentVersion)
+                    LabeledContent("Build", value: currentBuild)
                     LabeledContent("Device model", value: UIDevice.current.model)
-                    LabeledContent("Kernel R/W", value: "Not available")
-                    Text("UIKit does not expose the exact build identifier, hardware model identifier, entitlement validation, or exploitability. Version matches are advisory.")
+                    LabeledContent("Kernel R/W", value: "Not demonstrated")
+                    Text("The build identifier is read from the public kern.osversion sysctl. UIKit does not expose a complete hardware identifier or a general entitlement inventory. Exact device-side exploitability still requires a controlled test and evidence log.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
 
                 Section("worse_query · sandbox escape") {
-                    Label("Not a CVE or a jailbreak", systemImage: "info.circle")
+                    Label("Container-boundary access, not kernel access", systemImage: "info.circle")
                         .font(.subheadline.weight(.semibold))
-                    Text("The upstream proof of concept describes access to selected app and system container paths through a sandbox-extension issue. Its README lists iOS 26.0–26.7.2 and iOS 27.2. The author explicitly says it is not relevant to a jailbreak.")
+                    Text("The upstream PoC documents selected app, extension, daemon, App Group and system-container paths on supported builds. WQ Files 0.9.30 reports iOS 26.0–26.7.2 and iOS 27.0 through 27.3 beta 1, with a patch at 27.3 beta 2 (24C5049d). Its maintainer lists iPhone 17 Pro Max on 27.0.1 as tested.")
                         .font(.caption).foregroundStyle(.secondary)
                     resultRow("worse_query", fallback: "Not checked")
                     Button {
                         results["worse_query"] = worseQueryAssessment()
                     } label: {
-                        Label("Check reported version compatibility", systemImage: "checkmark.shield")
+                        Label("Check this build against reports", systemImage: "checkmark.shield")
                     }
-                    Text("This compares the OS version with public reports only. It does not invoke worse_query or attempt to open protected containers.")
+                    Text("This is a version/build comparison only. It does not invoke worse_query, inspect another app's files, or prove that the App Group entitlement is preserved by the signing method.")
                         .font(.caption2).foregroundStyle(.secondary)
                     Link(destination: URL(string: "https://github.com/forcequitOS/worse_query")!) {
                         Label("Upstream worse_query source", systemImage: "link")
                     }
-                    Link(destination: URL(string: "https://github.com/kolbicz/WQFiles")!) {
-                        Label("WQ Files · additional device reports", systemImage: "link")
+                    Link(destination: URL(string: "https://github.com/kolbicz/WQFiles/releases")!) {
+                        Label("WQ Files releases and device reports", systemImage: "link")
                     }
                 }
 
-                Section("CVE-2026-112611 · CoreGraphics") {
-                    Text("Public research describes a constrained 4-byte zero write in a PDF-selected CoreGraphics shading path and heap corruption. It does not establish general-purpose arbitrary R/W, kernel R/W, or a complete privilege-escalation chain.")
+                Section("CVE-2026-112611 · CoreGraphics PDF") {
+                    Text("The SKVLENT v0.4 report documents a PDF-triggered out-of-bounds write and heap spill, plus a constrained heap-pointer write in CGPDFService when the target is mapped, writable and initially zero. It also describes a crash-based word oracle. These are researcher-reported results, not independently reproduced by Nocturne.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Text("The report does not demonstrate arbitrary-value R/W, a general arbitrary read, control-flow hijack, code execution, kernel R/W, or a jailbreak.")
                         .font(.caption).foregroundStyle(.secondary)
                     resultRow("cve", fallback: "Not checked")
                     Button {
                         results["cve"] = cveAssessment()
                     } label: {
-                        Label("Check reported version range", systemImage: "checkmark.shield")
+                        Label("Check this build against fix boundary", systemImage: "checkmark.shield")
                     }
                     Link(destination: URL(string: "https://github.com/SKVLENT/CVE-2026-112611")!) {
-                        Label("CVE-2026-112611 research", systemImage: "link")
+                        Label("CVE-2026-112611 v0.4 research", systemImage: "link")
                     }
                     Link(destination: URL(string: "https://github.com/SKVLENT/iOS27-Research-Exploits")!) {
-                        Label("iOS 27 research collection", systemImage: "link")
+                        Label("Broader iOS 27 research notebook", systemImage: "link")
                     }
+                }
+
+                Section("Other research worth tracking") {
+                    researchRow("CVE-2026-112477 · IOSurface", status: "Not reproduced", detail: "Related race condition; the research notebook reports inert size validation and no kernel R/W.")
+                    researchRow("CVE-2026-112696 · ANE", status: "Static analysis only", detail: "A kernel-driver bounds issue is localised in a patch comparison, but the user client is not reachable from the tested app sandbox.")
+                    researchRow("CVE-2026-111497 · Brotli", status: "Blocked on device", detail: "A write was reproduced locally; the device test hits an MTE tag-check failure before the alleged disclosure is established.")
+                    researchRow("CVE-2026-112706 · mediaplaybackd", status: "Access boundary reproduced", detail: "A media service was reported to open a file on an app's behalf; this is a service-permission issue, not code execution.")
+                    researchRow("Metal GPU VA", status: "Same-context only", detail: "GPU reads and writes were reported within one context; the tested process boundary was not crossed.")
                 }
 
                 Section("Safe local diagnostics") {
@@ -77,17 +90,20 @@ struct ResearchView: View {
                 Section("Kernel read / write assessment") {
                     resultRow("kernel", fallback: "No kernel primitive integrated")
                     Button {
-                        results["kernel"] = "Not testable: Nocturne has no kernel read/write primitive or kernel exploit backend integrated. No memory access was attempted."
+                        results["kernel"] = "Not demonstrated. Nocturne has no kernel read/write backend. No kernel memory access was attempted."
                     } label: {
                         Label("Assess kernel R/W capability", systemImage: "memorychip")
                     }
-                    Text("A sandbox escape is not a kernel exploit. worse_query does not provide kernel privileges or kernel memory access. The CVE-2026-112611 public material does not demonstrate kernel R/W either.")
+                    Text("Neither worse_query nor the cited CVE research establishes kernel R/W on this device. A constrained write in a userland system service is not a kernel primitive.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
 
                 Section("Research references") {
                     Link(destination: URL(string: "https://support.apple.com/HT149230")!) {
                         Label("Apple · iOS 27.2 security content", systemImage: "apple.logo")
+                    }
+                    Link(destination: URL(string: "https://github.com/SKVLENT/iOS27-Research-Exploits/blob/main/vulnerabilities/_harness/PROJECT-STATUS.md")!) {
+                        Label("Research project status and negative results", systemImage: "doc.text.magnifyingglass")
                     }
                 }
             }
@@ -108,27 +124,46 @@ struct ResearchView: View {
         }
     }
 
+    private func researchRow(_ title: String, status: String, detail: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
+                Text(title).font(.subheadline.weight(.semibold))
+                Spacer()
+                Text(status).font(.caption.weight(.medium)).foregroundStyle(.secondary)
+            }
+            Text(detail).font(.caption).foregroundStyle(.secondary)
+        }
+        .padding(.vertical, 3)
+    }
+
     private func worseQueryAssessment() -> String {
         if isVersion(in: currentVersion, from: "26.0", through: "26.7.2") {
-            return "Inside upstream's reported iOS 26 range. Not proof of reachability."
+            return "Within WQ Files' reported iOS 26 range. Not proof of reachability."
         }
-        if isVersion(in: currentVersion, from: "27.2", through: "27.2") {
-            return "Matches upstream's listed iOS 27.2 target. Not proof of reachability."
+        if compareVersions(currentVersion, "27.0") != .orderedAscending &&
+            compareVersions(currentVersion, "27.2.99") != .orderedDescending {
+            return "Within WQ Files' reported iOS 27 range. Maintainer device test is 27.0.1; this build still needs an on-device access test."
         }
-        if isVersion(in: currentVersion, from: "27.0", through: "27.1.99") {
-            return "Not listed in the upstream README's iOS 27 target (27.2). Third-party reports differ; exact build remains unverified."
+        if compareVersions(currentVersion, "27.3") == .orderedSame {
+            if currentBuild == "24C5049d" || currentBuild > "24C5049d" {
+                return "Build is at or beyond the reported 27.3 beta 2 patch boundary."
+            }
+            if currentBuild == "24C5037i" {
+                return "Matches the reported 27.3 beta 1 supported build. Not proof of reachability."
+            }
+            return "iOS 27.3 detected, but this build is not identified in the published boundary list."
         }
-        if compareVersions(currentVersion, "27.3") != .orderedAscending {
-            return "Outside the upstream listed range. Check current patch-status reports for this exact build."
+        if compareVersions(currentVersion, "27.3") == .orderedDescending {
+            return "Outside the published WQ Files support range; later builds are reported patched."
         }
-        return "Outside the upstream README's listed range. No exploit test was run."
+        return "Not covered by the currently cited WQ Files compatibility reports."
     }
 
     private func cveAssessment() -> String {
         if compareVersions(currentVersion, "27.2") == .orderedAscending {
-            return "Reported pre-fix version range. Hardware/build applicability and exploitability are unverified."
+            return "Earlier than the published 27.2 fix boundary. Research reproduction is specifically reported on iPhone18,1 / 27.0.1 (24A446); this device's exploitability is not established."
         }
-        return "At or after the reported iOS 27.2 fix boundary. No exploit test was run."
+        return "At or after the published iOS 27.2 fix boundary. No exploit test was run."
     }
 
     private func runOwnContainerSelfTest() -> String {
@@ -147,8 +182,19 @@ struct ResearchView: View {
                 : "Failed: data read-back did not match."
         } catch {
             try? manager.removeItem(at: probe)
-            return "Failed: \(error.localizedDescription)"
+            return "Failed: \\(error.localizedDescription)"
         }
+    }
+
+    private func sysctlString(_ name: String) -> String? {
+        var size = 0
+        guard sysctlbyname(name, nil, &size, nil, 0) == 0, size > 1 else { return nil }
+        var value = [CChar](repeating: 0, count: size)
+        let result = value.withUnsafeMutableBufferPointer {
+            sysctlbyname(name, $0.baseAddress, &size, nil, 0)
+        }
+        guard result == 0 else { return nil }
+        return String(cString: value)
     }
 
     private func isVersion(in version: String, from lower: String, through upper: String) -> Bool {
