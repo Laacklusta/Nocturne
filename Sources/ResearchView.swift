@@ -2,12 +2,14 @@ import SwiftUI
 import UIKit
 import PDFKit
 import Darwin
+import PDFKit
 
 struct ResearchView: View {
     @EnvironmentObject private var theme: ThemeManager
     @State private var results: [String: String] = [:]
     @State private var diagnosticLog: [String] = []
     @State private var isRunningDiagnostics = false
+    @State private var pdfProbeStatus = "Not run"
 
     private let currentVersion = UIDevice.current.systemVersion
     private var currentBuild: String { sysctlString("kern.osversion") ?? "Unavailable" }
@@ -55,6 +57,12 @@ struct ResearchView: View {
                     LabeledContent("Device model", value: UIDevice.current.model)
                     LabeledContent("Kernel R/W", value: "Not demonstrated")
                     Text("The build identifier is read from the public kern.osversion sysctl. UIKit does not expose a complete hardware identifier or a general entitlement inventory. Exact device-side exploitability still requires a controlled test and evidence log.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+
+                Section("PDF parser stress test") {
+                    LabeledContent("Last run", value: pdfProbeStatus)
+                    Text("Generates a valid PDF, then runs bounded truncation and byte-mutation cases through PDFKit inside Nocturne. This exercises parser robustness but is not the CVE trigger and does not contact privileged renderers.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
 
@@ -163,6 +171,12 @@ struct ResearchView: View {
             .scrollContentBackground(.hidden)
             .background(theme.background)
             .navigationTitle("Research")
+            .onAppear {
+                if UserDefaults.standard.bool(forKey: "nocturne.pdfProbeInProgress") {
+                    UserDefaults.standard.set(false, forKey: "nocturne.pdfProbeInProgress")
+                    diagnosticLog.append("[(Date().formatted(date: .omitted, time: .standard))] PDF parser stress: Previous run ended before completion; possible app termination during parser testing. This is not proof of a vulnerability.")
+                }
+            }
         }
     }
 
@@ -177,28 +191,87 @@ struct ResearchView: View {
             diagnosticLog.append("[\(timestamp)] \(name): \(outcome)")
         }
 
-        record("Stage 1 · Device fingerprint", "\(UIDevice.current.model), iOS \(currentVersion), build \(currentBuild)")
-        record("Stage 2 · App identity", Bundle.main.bundleIdentifier ?? "Bundle identifier unavailable")
-        record("Stage 3 · App bundle", FileManager.default.fileExists(atPath: Bundle.main.bundlePath)
-            ? "Passed: application bundle is readable."
-            : "Failed: application bundle path is unavailable.")
-        record("Stage 4 · Own-container I/O", runOwnContainerSelfTest())
-        record("Stage 5 · Benign PDF pipeline", runBenignPDFSelfTest())
-        results["pdf"] = results["Stage 5 · Benign PDF pipeline"] ?? "Not run"
-        record("Stage 6 · worse_query report boundary", worseQueryAssessment())
-        record("Stage 7 · CVE-2026-112611 patch boundary", cveAssessment())
-        record("Stage 8 · Entitlements", "Not enumerated: this app does not include an entitlement-inspection backend.")
-        record("Stage 9 · Kernel R/W", "Not demonstrated. No kernel memory access was attempted.")
-        record("Stage 10 · Exploit execution", "Skipped by design. No exploit payloads or cross-process operations were run.")
+        Task { @MainActor in
+            record("Chain", "Started staged device and attack-surface assessment.")
+            record("Device", "\(UIDevice.current.model), iOS \(currentVersion), build \(currentBuild)")
+            record("App identity", Bundle.main.bundleIdentifier ?? "Bundle identifier unavailable")
+            record("App bundle", FileManager.default.fileExists(atPath: Bundle.main.bundlePath)
+                ? "Passed: application bundle is readable."
+                : "Failed: application bundle path is unavailable.")
 
-        let pdfPassed = results["pdf"]?.hasPrefix("Passed") == true
-        let containerPassed = results["sandbox"]?.hasPrefix("Passed") == true
-        let chainOutcome = pdfPassed && containerPassed
-            ? "Completed: device, container, and benign PDF checks passed. No vulnerability or privilege escalation was tested."
-            : "Completed with failures: inspect the individual stage results. No vulnerability or privilege escalation was tested."
-        record("chain", chainOutcome)
-        diagnosticLog.append("[\(Date().formatted(date: .omitted, time: .standard))] COMPLETE: Validation chain finished.")
-        isRunningDiagnostics = false
+            record("worse_query", worseQueryAssessment())
+            record("cve", cveAssessment())
+            record("PDF baseline", "Generating a valid PDF and checking PDFKit parsing.")
+
+            UserDefaults.standard.set(true, forKey: "nocturne.pdfProbeInProgress")
+            let pdfResult = await runPDFParserStressTest()
+            UserDefaults.standard.set(false, forKey: "nocturne.pdfProbeInProgress")
+            pdfProbeStatus = pdfResult
+            record("PDF parser stress", pdfResult)
+
+            record("sandbox", runOwnContainerSelfTest())
+            record("Entitlements", "Not enumerated: no entitlement-inspection backend; no private entitlement APIs called.")
+            record("Service boundary", "No external XPC service or other app container was contacted.")
+            record("kernel", "Not demonstrated. No kernel memory access was attempted.")
+            record("Exploit chain", "Stopped at evidence collection. No sandbox escape, privileged service payload, or kernel primitive was executed.")
+            diagnosticLog.append("[\(Date().formatted(date: .omitted, time: .standard))] COMPLETE: Research chain finished.")
+            isRunningDiagnostics = false
+        }
+    }
+
+    // Bounded PDFKit robustness test using generated input and deterministic mutations.
+    // It does not reproduce CVE-2026-112611 or target a privileged renderer.
+    private func runPDFParserStressTest() async -> String {
+        let bounds = CGRect(x: 0, y: 0, width: 612, height: 792)
+        let renderer = UIGraphicsPDFRenderer(bounds: bounds)
+        let baseline = renderer.pdfData { context in
+            context.beginPage()
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: UIFont.systemFont(ofSize: 18)
+            ]
+            "Nocturne PDF parser baseline".draw(at: CGPoint(x: 48, y: 48), withAttributes: attributes)
+        }
+
+        guard !baseline.isEmpty, let baselineDocument = PDFDocument(data: baseline),
+              baselineDocument.pageCount == 1 else {
+            return "Failed: generated baseline PDF could not be parsed as a one-page document."
+        }
+
+        return await Task.detached(priority: .utility) {
+            let original = [UInt8](baseline)
+            guard original.count > 64 else {
+                return "Failed: generated PDF was unexpectedly small."
+            }
+
+            var corpus: [Data] = []
+            for divisor in 2...8 {
+                let cut = max(1, original.count - original.count / divisor)
+                corpus.append(Data(original.prefix(cut)))
+            }
+
+            let strideSize = max(1, original.count / 14)
+            for offset in Swift.stride(from: 16, to: original.count, by: strideSize) {
+                var changed = original
+                changed[offset] ^= 0xFF
+                corpus.append(Data(changed))
+            }
+
+            corpus.append(Data([0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x37]))
+            corpus.append(Data(original + Array(repeating: 0x00, count: 64)))
+            corpus = Array(corpus.prefix(24))
+
+            var parsed = 0
+            var rejected = 0
+            for candidate in corpus {
+                if let document = PDFDocument(data: candidate), document.pageCount > 0 {
+                    parsed += 1
+                } else {
+                    rejected += 1
+                }
+            }
+
+            return "Completed \(corpus.count) bounded mutations in Nocturne's process: \(parsed) parsed, \(rejected) rejected. No crash observed during this run; this does not establish CVE status or absence of memory corruption."
+        }.value
     }
 
     @ViewBuilder
