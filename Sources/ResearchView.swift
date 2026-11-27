@@ -1,5 +1,6 @@
 import SwiftUI
 import UIKit
+import PDFKit
 import Darwin
 
 struct ResearchView: View {
@@ -92,6 +93,15 @@ struct ResearchView: View {
                     }
                 }
 
+                Section("Validation chain") {
+                    Label("Sequential, evidence-logged checks", systemImage: "point.3.connected.trianglepath.dotted")
+                        .font(.subheadline.weight(.semibold))
+                    Text("The chain fingerprints the device, verifies Nocturne's own container, exercises a benign PDF round-trip, and records published vulnerability boundaries. It does not run exploit payloads or cross security boundaries.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    resultRow("chain", fallback: "Not run")
+                    resultRow("pdf", fallback: "Not run")
+                }
+
                 Section("CVE-2026-112611 · CoreGraphics PDF") {
                     Text("The SKVLENT v0.4 report documents a PDF-triggered out-of-bounds write and heap spill, plus a constrained heap-pointer write in CGPDFService when the target is mapped, writable and initially zero. It also describes a crash-based word oracle. These are researcher-reported results, not independently reproduced by Nocturne.")
                         .font(.caption).foregroundStyle(.secondary)
@@ -167,19 +177,26 @@ struct ResearchView: View {
             diagnosticLog.append("[\(timestamp)] \(name): \(outcome)")
         }
 
-        record("Device", "\(UIDevice.current.model), iOS \(currentVersion), build \(currentBuild)")
-        record("App identity", Bundle.main.bundleIdentifier ?? "Bundle identifier unavailable")
-        record("App bundle", FileManager.default.fileExists(atPath: Bundle.main.bundlePath)
+        record("Stage 1 · Device fingerprint", "\(UIDevice.current.model), iOS \(currentVersion), build \(currentBuild)")
+        record("Stage 2 · App identity", Bundle.main.bundleIdentifier ?? "Bundle identifier unavailable")
+        record("Stage 3 · App bundle", FileManager.default.fileExists(atPath: Bundle.main.bundlePath)
             ? "Passed: application bundle is readable."
             : "Failed: application bundle path is unavailable.")
-        record("worse_query", worseQueryAssessment())
-        record("cve", cveAssessment())
-        record("sandbox", runOwnContainerSelfTest())
-        record("Entitlements", "Not enumerated: this app does not include an entitlement-inspection backend.")
-        record("kernel", "Not demonstrated. No kernel memory access was attempted.")
-        record("Exploit execution", "Skipped by design. Published compatibility and research claims are not exploit verification.")
+        record("Stage 4 · Own-container I/O", runOwnContainerSelfTest())
+        record("Stage 5 · Benign PDF pipeline", runBenignPDFSelfTest())
+        record("Stage 6 · worse_query report boundary", worseQueryAssessment())
+        record("Stage 7 · CVE-2026-112611 patch boundary", cveAssessment())
+        record("Stage 8 · Entitlements", "Not enumerated: this app does not include an entitlement-inspection backend.")
+        record("Stage 9 · Kernel R/W", "Not demonstrated. No kernel memory access was attempted.")
+        record("Stage 10 · Exploit execution", "Skipped by design. No exploit payloads or cross-process operations were run.")
 
-        diagnosticLog.append("[\(Date().formatted(date: .omitted, time: .standard))] COMPLETE: Safe diagnostics finished.")
+        let pdfPassed = results["pdf"]?.hasPrefix("Passed") == true
+        let containerPassed = results["sandbox"]?.hasPrefix("Passed") == true
+        let chainOutcome = pdfPassed && containerPassed
+            ? "Completed: device, container, and benign PDF checks passed. No vulnerability or privilege escalation was tested."
+            : "Completed with failures: inspect the individual stage results. No vulnerability or privilege escalation was tested."
+        record("chain", chainOutcome)
+        diagnosticLog.append("[\(Date().formatted(date: .omitted, time: .standard))] COMPLETE: Validation chain finished.")
         isRunningDiagnostics = false
     }
 
@@ -254,6 +271,34 @@ struct ResearchView: View {
             try? manager.removeItem(at: probe)
             return "Failed: \(error.localizedDescription)"
         }
+    }
+
+    private func runBenignPDFSelfTest() -> String {
+        // Generate a harmless one-page PDF in memory, then parse and render it
+        // using the same public PDFKit/CoreGraphics stack used by ordinary apps.
+        let pageRect = CGRect(x: 0, y: 0, width: 612, height: 792)
+        let renderer = UIGraphicsPDFRenderer(bounds: pageRect)
+        let pdfData = renderer.pdfData { context in
+            context.beginPage()
+            let message = "Nocturne benign PDF validation"
+            (message as NSString).draw(
+                at: CGPoint(x: 48, y: 48),
+                withAttributes: [.font: UIFont.systemFont(ofSize: 18)]
+            )
+        }
+
+        guard let document = PDFDocument(data: pdfData),
+              document.pageCount == 1,
+              let page = document.page(at: 0) else {
+            return "Failed: generated test PDF could not be parsed as a one-page document."
+        }
+
+        let thumbnail = page.thumbnail(of: CGSize(width: 256, height: 256), for: .mediaBox)
+        guard thumbnail.cgImage != nil else {
+            return "Failed: PDF parsed, but thumbnail rendering returned no image."
+        }
+
+        return "Passed: generated, parsed, and rendered a benign one-page PDF in memory. This does not test CVE-2026-112611."
     }
 
     private func sysctlString(_ name: String) -> String? {
