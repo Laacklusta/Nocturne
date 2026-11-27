@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build Nocturne
+    name: Build Nocturne (device + simulator)
     runs-on: macos-latest
     steps:
       - name: Check out source
@@ -36,6 +36,35 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Build for physical iOS devices (unsigned)
+        run: |
+          xcodebuild \
+            -project Nocturne.xcodeproj \
+            -scheme Nocturne \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build-device \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          APP_PATH="build-device/Build/Products/Release-iphoneos/Nocturne.app"
+          test -d "$APP_PATH"
+          mkdir -p ipa/Payload
+          cp -R "$APP_PATH" ipa/Payload/Nocturne.app
+          cd ipa
+          /usr/bin/zip -qry Nocturne-unsigned.ipa Payload
+          test -s Nocturne-unsigned.ipa
+
+      - name: Upload device IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nocturne-iOS-Device-Unsigned-IPA
+          path: ipa/Nocturne-unsigned.ipa
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Build for iOS Simulator
         run: |
           xcodebuild \
@@ -43,7 +72,7 @@ jobs:
             -scheme Nocturne \
             -sdk iphonesimulator \
             -configuration Debug \
-            -derivedDataPath build \
+            -derivedDataPath build-simulator \
             CODE_SIGNING_ALLOWED=NO \
             build
 
@@ -51,6 +80,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Nocturne-iOS-Simulator
-          path: build/Build/Products/Debug-iphonesimulator/Nocturne.app
+          path: build-simulator/Build/Products/Debug-iphonesimulator/Nocturne.app
           if-no-files-found: error
           retention-days: 14
