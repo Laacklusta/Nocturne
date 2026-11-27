@@ -3,61 +3,89 @@ import UIKit
 
 struct ResearchView: View {
     @EnvironmentObject private var theme: ThemeManager
-    private let currentVersion = UIDevice.current.systemVersion
-    private let fixVersion = "27.2"
+    @State private var results: [String: String] = [:]
 
-    private var assessment: String {
-        compareVersions(currentVersion, fixVersion) == .orderedAscending
-            ? "Reported pre-fix range" : "At/after reported fix"
-    }
+    private let currentVersion = UIDevice.current.systemVersion
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
-                    Label("iOS 27 research track", systemImage: "waveform.path.ecg")
+                    Label("Vulnerability Lab", systemImage: "waveform.path.ecg")
                         .foregroundStyle(theme.accent)
-                    Text("Nocturne tracks public security research separately from confirmed device support. A version match is not proof that a vulnerability is reachable or that a jailbreak exists.")
+                    Text("Run non-destructive checks against this device's reported OS version and Nocturne's own sandbox. These checks do not execute exploit code, access other apps' data, or test kernel memory.")
                         .font(.footnote).foregroundStyle(.secondary)
                 }
+
                 Section("This device") {
-                    LabeledContent("Reported iOS version", value: currentVersion)
-                    LabeledContent("Research assessment", value: assessment)
-                    Text("UIKit exposes the OS version, not the exact build number, hardware applicability, jailbreak state, or exploitability.")
+                    LabeledContent("iOS version", value: currentVersion)
+                    LabeledContent("Device model", value: UIDevice.current.model)
+                    LabeledContent("Kernel R/W", value: "Not available")
+                    Text("UIKit does not expose the exact build identifier, hardware model identifier, entitlement validation, or exploitability. Version matches are advisory.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
-                Section("CVE-2026-112611 · reported scope") {
-                    compatibilityRow("iOS 27.0 / 27.0.1", "Primary research target")
-                    compatibilityRow("iOS 27.1.x", "Pre-fix range; verify build")
-                    compatibilityRow("iOS 27.2 and later", "Reported fixed")
-                    compatibilityRow("iOS 17–26", "Not assessed by this research")
-                    Text("The public research identifies iOS 27.2 as the fix boundary. Earlier versions are a reported pre-fix range only; exact build and hardware applicability require independent verification.")
+
+                Section("worse_query · sandbox escape") {
+                    Label("Not a CVE or a jailbreak", systemImage: "info.circle")
+                        .font(.subheadline.weight(.semibold))
+                    Text("The upstream proof of concept describes access to selected app and system container paths through a sandbox-extension issue. Its README lists iOS 26.0–26.7.2 and iOS 27.2. The author explicitly says it is not relevant to a jailbreak.")
                         .font(.caption).foregroundStyle(.secondary)
+                    resultRow("worse_query", fallback: "Not checked")
+                    Button {
+                        results["worse_query"] = worseQueryAssessment()
+                    } label: {
+                        Label("Check reported version compatibility", systemImage: "checkmark.shield")
+                    }
+                    Text("This compares the OS version with public reports only. It does not invoke worse_query or attempt to open protected containers.")
+                        .font(.caption2).foregroundStyle(.secondary)
+                    Link(destination: URL(string: "https://github.com/forcequitOS/worse_query")!) {
+                        Label("Upstream worse_query source", systemImage: "link")
+                    }
+                    Link(destination: URL(string: "https://github.com/kolbicz/WQFiles")!) {
+                        Label("WQ Files · additional device reports", systemImage: "link")
+                    }
                 }
-                Section("Reported primitive status") {
-                    evidence("Constrained 4-byte zero write", "Reported in a PDF-selected CoreGraphics shading path.")
-                    evidence("Heap corruption", "Associated with an out-of-bounds heap corruption condition.")
-                    evidence("Privileged userland reachability", "The research describes reachability through QuickLook's CGPDFService process.")
-                }
-                Section("Not demonstrated by this research") {
-                    evidence("General arbitrary read/write", "The reported write is constrained; a general-purpose read/write primitive is not established.")
-                    evidence("Kernel read/write", "The public research does not demonstrate kernel memory read or write.")
-                    evidence("Working jailbreak or persistence", "No complete privilege-escalation chain or jailbreak is established.")
-                }
-                Section("Nocturne implementation status") {
-                    statusRow("Version-aware compatibility catalog", "In progress", .orange)
-                    statusRow("Jailbreak environment adapters", "Not integrated", .secondary)
-                    statusRow("CVE proof-of-concept integration", "Not integrated", .secondary)
-                    Text("The app currently contains research notes and compatibility reporting only. It does not execute the CVE proof of concept or modify kernel memory. System-tweak backends must be implemented and tested independently for each supported environment.")
-                        .font(.footnote).foregroundStyle(.secondary)
-                }
-                Section("Primary references") {
+
+                Section("CVE-2026-112611 · CoreGraphics") {
+                    Text("Public research describes a constrained 4-byte zero write in a PDF-selected CoreGraphics shading path and heap corruption. It does not establish general-purpose arbitrary R/W, kernel R/W, or a complete privilege-escalation chain.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    resultRow("cve", fallback: "Not checked")
+                    Button {
+                        results["cve"] = cveAssessment()
+                    } label: {
+                        Label("Check reported version range", systemImage: "checkmark.shield")
+                    }
                     Link(destination: URL(string: "https://github.com/SKVLENT/CVE-2026-112611")!) {
-                        Label("SKVLENT · CVE-2026-112611", systemImage: "link")
+                        Label("CVE-2026-112611 research", systemImage: "link")
                     }
                     Link(destination: URL(string: "https://github.com/SKVLENT/iOS27-Research-Exploits")!) {
-                        Label("SKVLENT · iOS 27 research", systemImage: "link")
+                        Label("iOS 27 research collection", systemImage: "link")
                     }
+                }
+
+                Section("Safe local diagnostics") {
+                    Text("This test creates, reads, and removes a temporary file inside Nocturne's own Application Support directory. It verifies ordinary app-container file access only.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    resultRow("sandbox", fallback: "Not run")
+                    Button {
+                        results["sandbox"] = runOwnContainerSelfTest()
+                    } label: {
+                        Label("Test Nocturne's own sandbox", systemImage: "folder.badge.checkmark")
+                    }
+                }
+
+                Section("Kernel read / write assessment") {
+                    resultRow("kernel", fallback: "No kernel primitive integrated")
+                    Button {
+                        results["kernel"] = "Not testable: Nocturne has no kernel read/write primitive or kernel exploit backend integrated. No memory access was attempted."
+                    } label: {
+                        Label("Assess kernel R/W capability", systemImage: "memorychip")
+                    }
+                    Text("A sandbox escape is not a kernel exploit. worse_query does not provide kernel privileges or kernel memory access. The CVE-2026-112611 public material does not demonstrate kernel R/W either.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+
+                Section("Research references") {
                     Link(destination: URL(string: "https://support.apple.com/HT149230")!) {
                         Label("Apple · iOS 27.2 security content", systemImage: "apple.logo")
                     }
@@ -69,27 +97,63 @@ struct ResearchView: View {
         }
     }
 
-    private func compatibilityRow(_ version: String, _ status: String) -> some View {
-        HStack {
-            Text(version).font(.subheadline.weight(.medium))
+    @ViewBuilder
+    private func resultRow(_ key: String, fallback: String) -> some View {
+        HStack(alignment: .top) {
+            Text("Last result").font(.subheadline)
             Spacer()
-            Text(status).font(.caption).foregroundStyle(.secondary)
+            Text(results[key] ?? fallback)
+                .font(.caption).foregroundStyle(.secondary)
+                .multilineTextAlignment(.trailing).frame(maxWidth: 220, alignment: .trailing)
         }
     }
 
-    private func evidence(_ title: String, _ detail: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title).font(.subheadline.weight(.semibold))
-            Text(detail).font(.caption).foregroundStyle(.secondary)
-        }.padding(.vertical, 3)
+    private func worseQueryAssessment() -> String {
+        if isVersion(in: currentVersion, from: "26.0", through: "26.7.2") {
+            return "Inside upstream's reported iOS 26 range. Not proof of reachability."
+        }
+        if isVersion(in: currentVersion, from: "27.2", through: "27.2") {
+            return "Matches upstream's listed iOS 27.2 target. Not proof of reachability."
+        }
+        if isVersion(in: currentVersion, from: "27.0", through: "27.1.99") {
+            return "Not listed in the upstream README's iOS 27 target (27.2). Third-party reports differ; exact build remains unverified."
+        }
+        if compareVersions(currentVersion, "27.3") != .orderedAscending {
+            return "Outside the upstream listed range. Check current patch-status reports for this exact build."
+        }
+        return "Outside the upstream README's listed range. No exploit test was run."
     }
 
-    private func statusRow(_ title: String, _ state: String, _ color: Color) -> some View {
-        HStack {
-            Text(title).font(.subheadline)
-            Spacer()
-            Text(state).font(.caption.weight(.medium)).foregroundStyle(color)
+    private func cveAssessment() -> String {
+        if compareVersions(currentVersion, "27.2") == .orderedAscending {
+            return "Reported pre-fix version range. Hardware/build applicability and exploitability are unverified."
         }
+        return "At or after the reported iOS 27.2 fix boundary. No exploit test was run."
+    }
+
+    private func runOwnContainerSelfTest() -> String {
+        let manager = FileManager.default
+        guard let support = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return "Failed: Application Support directory unavailable."
+        }
+        let probe = support.appendingPathComponent("nocturne-sandbox-self-test.tmp")
+        let payload = Data("Nocturne local sandbox self-test".utf8)
+        do {
+            try payload.write(to: probe, options: .atomic)
+            let readBack = try Data(contentsOf: probe)
+            try manager.removeItem(at: probe)
+            return readBack == payload
+                ? "Passed: Nocturne can write/read/delete a file in its own container. No other path was accessed."
+                : "Failed: data read-back did not match."
+        } catch {
+            try? manager.removeItem(at: probe)
+            return "Failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func isVersion(in version: String, from lower: String, through upper: String) -> Bool {
+        compareVersions(version, lower) != .orderedAscending &&
+        compareVersions(version, upper) != .orderedDescending
     }
 
     private func compareVersions(_ lhs: String, _ rhs: String) -> ComparisonResult {
