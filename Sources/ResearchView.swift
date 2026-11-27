@@ -7,7 +7,7 @@ struct ResearchView: View {
     @State private var results: [String: String] = [:]
 
     private let currentVersion = UIDevice.current.systemVersion
-    private let currentBuild = sysctlString("kern.osversion") ?? "Unavailable"
+    private var currentBuild: String { sysctlString("kern.osversion") ?? "Unavailable" }
 
     var body: some View {
         NavigationStack {
