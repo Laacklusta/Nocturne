@@ -164,22 +164,22 @@ struct ResearchView: View {
         func record(_ name: String, _ outcome: String) {
             results[name] = outcome
             let timestamp = Date().formatted(date: .omitted, time: .standard)
-            diagnosticLog.append("[\\(timestamp)] \\(name): \\(outcome)")
+            diagnosticLog.append("[\(timestamp)] \(name): \(outcome)")
         }
 
-        record("Device", "\\(UIDevice.current.model), iOS \\(currentVersion), build \\(currentBuild)")
+        record("Device", "\(UIDevice.current.model), iOS \(currentVersion), build \(currentBuild)")
         record("App identity", Bundle.main.bundleIdentifier ?? "Bundle identifier unavailable")
         record("App bundle", FileManager.default.fileExists(atPath: Bundle.main.bundlePath)
             ? "Passed: application bundle is readable."
             : "Failed: application bundle path is unavailable.")
         record("worse_query", worseQueryAssessment())
-        record("CVE-2026-112611", cveAssessment())
-        record("Own-container I/O", runOwnContainerSelfTest())
+        record("cve", cveAssessment())
+        record("sandbox", runOwnContainerSelfTest())
         record("Entitlements", "Not enumerated: this app does not include an entitlement-inspection backend.")
-        record("Kernel R/W", "Not demonstrated. No kernel memory access was attempted.")
+        record("kernel", "Not demonstrated. No kernel memory access was attempted.")
         record("Exploit execution", "Skipped by design. Published compatibility and research claims are not exploit verification.")
 
-        diagnosticLog.append("[\\(Date().formatted(date: .omitted, time: .standard))] COMPLETE: Safe diagnostics finished.")
+        diagnosticLog.append("[\(Date().formatted(date: .omitted, time: .standard))] COMPLETE: Safe diagnostics finished.")
         isRunningDiagnostics = false
     }
 
@@ -252,7 +252,7 @@ struct ResearchView: View {
                 : "Failed: data read-back did not match."
         } catch {
             try? manager.removeItem(at: probe)
-            return "Failed: \\(error.localizedDescription)"
+            return "Failed: \(error.localizedDescription)"
         }
     }
 
