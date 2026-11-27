@@ -184,6 +184,7 @@ struct ResearchView: View {
             : "Failed: application bundle path is unavailable.")
         record("Stage 4 · Own-container I/O", runOwnContainerSelfTest())
         record("Stage 5 · Benign PDF pipeline", runBenignPDFSelfTest())
+        results["pdf"] = results["Stage 5 · Benign PDF pipeline"] ?? "Not run"
         record("Stage 6 · worse_query report boundary", worseQueryAssessment())
         record("Stage 7 · CVE-2026-112611 patch boundary", cveAssessment())
         record("Stage 8 · Entitlements", "Not enumerated: this app does not include an entitlement-inspection backend.")
