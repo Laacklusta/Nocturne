@@ -5,6 +5,8 @@ import Darwin
 struct ResearchView: View {
     @EnvironmentObject private var theme: ThemeManager
     @State private var results: [String: String] = [:]
+    @State private var diagnosticLog: [String] = []
+    @State private var isRunningDiagnostics = false
 
     private let currentVersion = UIDevice.current.systemVersion
     private var currentBuild: String { sysctlString("kern.osversion") ?? "Unavailable" }
@@ -19,6 +21,33 @@ struct ResearchView: View {
                         .font(.footnote).foregroundStyle(.secondary)
                 }
 
+                Section("Diagnostics") {
+                    Button {
+                        runAllDiagnostics()
+                    } label: {
+                        HStack {
+                            Label("Run All Diagnostics", systemImage: "stethoscope")
+                            Spacer()
+                            if isRunningDiagnostics {
+                                ProgressView()
+                            } else {
+                                Image(systemName: "play.fill")
+                            }
+                        }
+                    }
+                    .disabled(isRunningDiagnostics)
+                    Text("Runs the complete safe diagnostic suite and records each result below. No exploit payloads or privileged memory operations are used.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    if !diagnosticLog.isEmpty {
+                        Button(role: .destructive) {
+                            diagnosticLog.removeAll()
+                        } label: {
+                            Label("Clear diagnostic log", systemImage: "trash")
+                                .font(.caption)
+                        }
+                    }
+                }
+
                 Section("This device") {
                     LabeledContent("iOS version", value: currentVersion)
                     LabeledContent("Build", value: currentBuild)
@@ -26,6 +55,20 @@ struct ResearchView: View {
                     LabeledContent("Kernel R/W", value: "Not demonstrated")
                     Text("The build identifier is read from the public kern.osversion sysctl. UIKit does not expose a complete hardware identifier or a general entitlement inventory. Exact device-side exploitability still requires a controlled test and evidence log.")
                         .font(.caption).foregroundStyle(.secondary)
+                }
+
+                Section("Diagnostic log") {
+                    if diagnosticLog.isEmpty {
+                        Text("No diagnostic run yet. Tap Run All Diagnostics to begin.")
+                            .font(.caption).foregroundStyle(.secondary)
+                    } else {
+                        ForEach(Array(diagnosticLog.enumerated()), id: \.offset) { _, entry in
+                            Text(entry)
+                                .font(.system(.caption, design: .monospaced))
+                                .textSelection(.enabled)
+                                .padding(.vertical, 2)
+                        }
+                    }
                 }
 
                 Section("worse_query · sandbox escape") {
@@ -111,6 +154,33 @@ struct ResearchView: View {
             .background(theme.background)
             .navigationTitle("Research")
         }
+    }
+
+    private func runAllDiagnostics() {
+        guard !isRunningDiagnostics else { return }
+        isRunningDiagnostics = true
+        diagnosticLog.removeAll()
+
+        func record(_ name: String, _ outcome: String) {
+            results[name] = outcome
+            let timestamp = Date().formatted(date: .omitted, time: .standard)
+            diagnosticLog.append("[\\(timestamp)] \\(name): \\(outcome)")
+        }
+
+        record("Device", "\\(UIDevice.current.model), iOS \\(currentVersion), build \\(currentBuild)")
+        record("App identity", Bundle.main.bundleIdentifier ?? "Bundle identifier unavailable")
+        record("App bundle", FileManager.default.fileExists(atPath: Bundle.main.bundlePath)
+            ? "Passed: application bundle is readable."
+            : "Failed: application bundle path is unavailable.")
+        record("worse_query", worseQueryAssessment())
+        record("CVE-2026-112611", cveAssessment())
+        record("Own-container I/O", runOwnContainerSelfTest())
+        record("Entitlements", "Not enumerated: this app does not include an entitlement-inspection backend.")
+        record("Kernel R/W", "Not demonstrated. No kernel memory access was attempted.")
+        record("Exploit execution", "Skipped by design. Published compatibility and research claims are not exploit verification.")
+
+        diagnosticLog.append("[\\(Date().formatted(date: .omitted, time: .standard))] COMPLETE: Safe diagnostics finished.")
+        isRunningDiagnostics = false
     }
 
     @ViewBuilder
