@@ -61,11 +61,15 @@ struct DashboardView: View {
     @State private var progress = 0.0
     @State private var log: [String] = ["Nocturne Demo Engine 1.0 initialized.", "Device inspection is local and read-only."]
     @State private var timer: Timer?
+    @AppStorage("nocturne.demo.bootstrap.installed") private var bootstrapInstalled = false
 
     private let stages = [
         "Inspecting device profile",
         "Checking simulated environment",
         "Preparing demo bootstrap",
+        "Creating local demo filesystem",
+        "Installing bootstrap components (demo)",
+        "Registering package manager (demo)",
         "Verifying mock package database",
         "Finalizing demonstration"
     ]
@@ -119,9 +123,9 @@ struct DashboardView: View {
                     Image(systemName: complete ? "checkmark" : "lock.fill").font(.system(size: 19, weight: .semibold)).foregroundStyle(complete ? Palette.green : Palette.muted)
                 }
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(complete ? "Demo completed" : "Not jailbroken")
+                    Text(complete ? "Demo environment ready" : "Not jailbroken")
                         .font(.system(size: 21, weight: .bold, design: .rounded))
-                    Text(complete ? "All simulated stages finished" : "No system modifications detected")
+                    Text(complete ? "Bootstrap demo installed locally" : "No system modifications detected")
                         .font(.system(size: 12)).foregroundStyle(Palette.muted)
                 }
                 Spacer(minLength: 0)
@@ -132,7 +136,7 @@ struct DashboardView: View {
                 Spacer()
                 metric("iOS VERSION", UIDevice.current.systemVersion)
                 Spacer()
-                metric("MODE", "READ-ONLY")
+                metric("BOOTSTRAP", bootstrapInstalled ? "DEMO READY" : "NOT INSTALLED")
             }
         }
         .padding(17).background(Palette.panel, in: RoundedRectangle(cornerRadius: 18))
@@ -188,7 +192,7 @@ struct DashboardView: View {
                         .background(Palette.accent.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
                 }.buttonStyle(.plain)
             }
-            Text("This is a visual demo. It does not exploit iOS, install a bootstrap, or change device security state.")
+            Text("Installs a simulated bootstrap into Nocturne app storage only. No iOS system files, privileges, or security settings are changed.")
                 .font(.system(size: 10)).foregroundStyle(Palette.muted).fixedSize(horizontal: false, vertical: true)
         }
         .padding(17).background(Palette.panel, in: RoundedRectangle(cornerRadius: 18))
@@ -216,20 +220,26 @@ struct DashboardView: View {
         .overlay(RoundedRectangle(cornerRadius: 16).stroke(Palette.line, lineWidth: 1))
     }
     private var footer: some View {
-        Text("NOCTURNE • INTERACTIVE UI DEMONSTRATION")
+        Text(bootstrapInstalled ? "NOCTURNE • DEMO BOOTSTRAP INSTALLED" : "NOCTURNE • INTERACTIVE UI DEMONSTRATION")
             .font(.system(size: 9, weight: .bold)).tracking(1.2).foregroundStyle(Palette.muted.opacity(0.65))
     }
 
     private func startSimulation() {
         timer?.invalidate()
         running = true; complete = false; progress = 0
-        log = ["Nocturne Demo Engine initialized.", "Beginning simulated workflow…"]
+        log = ["Nocturne Demo Engine initialized.", "Beginning simulated workflow…", "Target: app-local demo container"]
         var step = 0
         timer = Timer.scheduledTimer(withTimeInterval: 0.85, repeats: true) { t in
             guard step < stages.count else {
                 t.invalidate()
                 running = false; complete = true; progress = 1
-                log.append("DEMO COMPLETE — no jailbreak was performed.")
+                bootstrapInstalled = true
+                log.append("Bootstrap components installed in app-local storage.")
+                log.append("Package manager registration complete (demo).")
+                log.append("DEMO COMPLETE — device remains unmodified.")
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.9) {
+                    showRespring = true
+                }
                 return
             }
             log.append("[SIM] " + stages[step] + "…")
