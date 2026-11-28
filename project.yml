@@ -24,7 +24,7 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: Nocturne
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
   NocturneClip:
-    type: appClip
+    type: application.on-demand-install-capable
     platform: iOS
     sources:
       - Sources/Clip
