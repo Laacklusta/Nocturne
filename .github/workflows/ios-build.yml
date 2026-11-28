@@ -16,37 +16,23 @@ concurrency:
 
 jobs:
   build:
-    name: Build Nocturne (device + simulator)
+    name: Build Nocturne app and App Clip
     runs-on: macos-latest
     steps:
       - name: Check out source
         uses: actions/checkout@v4
-
       - name: Select Xcode
         run: |
           XCODE_PATH=$(ls -d /Applications/Xcode*.app 2>/dev/null | sort -V | tail -n 1)
-          if [ -n "$XCODE_PATH" ]; then
-            sudo xcode-select -s "$XCODE_PATH/Contents/Developer"
-          fi
+          if [ -n "$XCODE_PATH" ]; then sudo xcode-select -s "$XCODE_PATH/Contents/Developer"; fi
           xcodebuild -version
-
       - name: Install XcodeGen
         run: brew install xcodegen
-
       - name: Generate Xcode project
         run: xcodegen generate
-
-      - name: Build for physical iOS devices (unsigned)
+      - name: Build app for physical devices (unsigned)
         run: |
-          xcodebuild \
-            -project Nocturne.xcodeproj \
-            -scheme Nocturne \
-            -sdk iphoneos \
-            -configuration Release \
-            -derivedDataPath build-device \
-            CODE_SIGNING_ALLOWED=NO \
-            build
-
+          xcodebuild -project Nocturne.xcodeproj -scheme Nocturne -sdk iphoneos -configuration Release -derivedDataPath build-device CODE_SIGNING_ALLOWED=NO build
       - name: Package unsigned IPA
         run: |
           APP_PATH="build-device/Build/Products/Release-iphoneos/Nocturne.app"
@@ -56,26 +42,26 @@ jobs:
           cd ipa
           /usr/bin/zip -qry Nocturne-unsigned.ipa Payload
           test -s Nocturne-unsigned.ipa
-
-      - name: Upload device IPA
+      - name: Upload unsigned IPA
         uses: actions/upload-artifact@v4
         with:
           name: Nocturne-iOS-Device-Unsigned-IPA
           path: ipa/Nocturne-unsigned.ipa
           if-no-files-found: error
           retention-days: 14
-
+      - name: Build App Clip for physical devices (unsigned)
+        run: |
+          xcodebuild -project Nocturne.xcodeproj -scheme NocturneClip -sdk iphoneos -configuration Release -derivedDataPath build-clip CODE_SIGNING_ALLOWED=NO build
+      - name: Upload App Clip app
+        uses: actions/upload-artifact@v4
+        with:
+          name: Nocturne-App-Clip-Unsigned
+          path: build-clip/Build/Products/Release-iphoneos/NocturneClip.app
+          if-no-files-found: error
+          retention-days: 14
       - name: Build for iOS Simulator
         run: |
-          xcodebuild \
-            -project Nocturne.xcodeproj \
-            -scheme Nocturne \
-            -sdk iphonesimulator \
-            -configuration Debug \
-            -derivedDataPath build-simulator \
-            CODE_SIGNING_ALLOWED=NO \
-            build
-
+          xcodebuild -project Nocturne.xcodeproj -scheme Nocturne -sdk iphonesimulator -configuration Debug -derivedDataPath build-simulator CODE_SIGNING_ALLOWED=NO build
       - name: Upload simulator app
         uses: actions/upload-artifact@v4
         with:
